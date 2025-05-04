@@ -3,9 +3,13 @@ A cross-platform scanner for detecting hidden payloads and shellcode in various 
 
 ## Features
 
-- Multi-format support: PNG, JPEG, GIF and extensible to more formats
+- Multi-format support: PNG, JPEG, GIF, PDF, Office Documents (DOCX, XLSX, PPTX), MP3, PE/ELF executables
 - Detects hidden data appended after file structure ends
 - Analyzes payloads for known signatures of malicious content
+- Detects code caves and suspicious sections in executables
+- Finds hidden data in PDF objects and between sections
+- Identifies VBA macros and suspicious content in Office documents
+- Detects data hidden in MP3 ID3 tags and after audio data
 - Calculates entropy to identify encrypted or obfuscated data
 - Memory-efficient mode for processing large files
 - Parallel processing for scanning large directories
@@ -33,7 +37,7 @@ python bytehawk.py -p /path/to/files
 python bytehawk.py -p /path/to/files -v -d
 
 # Scan specific formats only
-python bytehawk.py -p /path/to/files --formats png,jpg,gif
+python bytehawk.py -p /path/to/files --formats png,jpg,gif,pdf,docx,mp3,exe
 
 # Use parallel processing
 python bytehawk.py -p /path/to/files --parallel
@@ -55,6 +59,10 @@ python bytehawk.py -p /path/to/files --min-confidence 0.7
 - PNG - Scans for data after IEND chunk
 - JPEG - Scans for data after EOI marker
 - GIF - Scans for data after trailer and analyzes comment blocks
+- PDF - Scans for data after EOF marker and suspicious objects/regions
+- Office Documents - Scans DOCX/XLSX/PPTX for data after ZIP end, VBA macros, and suspicious files
+- MP3 - Scans for data between ID3v2 tags and audio frames, after audio end, and in suspicious ID3 frames
+- Executables - Scans PE/ELF files for code caves, data after sections, and suspicious executable regions
 
 ## Adding New Formats
 
