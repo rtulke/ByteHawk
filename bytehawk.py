@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-multi_format_scanner.py
+bytehawk.py
 
 Hauptmodul für den Multi-Format Payload Scanner.
 """
