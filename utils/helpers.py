@@ -6,6 +6,15 @@ Hilfsfunktionen für den Multi-Format Payload Scanner.
 """
 
 import os
+import json
+import csv
+
+# Überprüfen, ob PyYAML installiert ist
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
 
 
 def format_size(size_bytes):
@@ -167,6 +176,7 @@ def print_results(results, verbose=False):
         entropy = result.get('entropy', 0)
         entropy_class = result.get('entropy_classification', 'Unbekannt')
         signatures = result.get('signatures', [])
+        confidence = result.get('confidence', 'N/A')
         
         print(f"\n[{idx}] {filepath}")
         print(f"    Format: {format_name}")
@@ -175,6 +185,8 @@ def print_results(results, verbose=False):
         print(f"    Payload-Offset: {payload_offset} ({hex(payload_offset)})")
         print(f"    Payload-Größe: {format_size(payload_size)}")
         print(f"    Entropie: {entropy:.2f} - {entropy_class}")
+        if isinstance(confidence, float):
+            print(f"    Konfidenz: {confidence:.2f}")
         
         if signatures:
             print(f"    Erkannte Signaturen ({len(signatures)}):")
@@ -207,3 +219,158 @@ def print_results(results, verbose=False):
                             print(f"      - {k}: {v}")
     
     print("\nHinweis: Verwenden Sie ein Payload-Extraktionstool, um diese Payloads zu extrahieren und zu analysieren.")
+
+
+# Export-Funktionen
+def export_results_to_json(results, output_file):
+    """
+    Exportiert Scan-Ergebnisse als JSON-Datei.
+    
+    Args:
+        results: Liste mit Scan-Ergebnissen
+        output_file: Pfad zur Ausgabedatei
+        
+    Returns:
+        True bei Erfolg, False bei Fehler
+    """
+    try:
+        # Daten für JSON aufbereiten
+        clean_results = _prepare_results_for_export(results)
+        
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(clean_results, f, indent=2, ensure_ascii=False)
+        
+        print(f"Ergebnisse wurden als JSON in '{output_file}' exportiert.")
+        return True
+    except Exception as e:
+        print(f"Fehler beim Export als JSON: {e}")
+        return False
+
+
+def export_results_to_csv(results, output_file):
+    """
+    Exportiert Scan-Ergebnisse als CSV-Datei.
+    
+    Args:
+        results: Liste mit Scan-Ergebnissen
+        output_file: Pfad zur Ausgabedatei
+        
+    Returns:
+        True bei Erfolg, False bei Fehler
+    """
+    try:
+        if not results:
+            print("Keine Ergebnisse zum Exportieren vorhanden.")
+            return False
+            
+        # Die wichtigsten Felder für den CSV-Export
+        fields = [
+            'filepath', 'format', 'payload_type', 'hiding_method',
+            'payload_offset', 'payload_size', 'entropy',
+            'entropy_classification', 'md5', 'sha256'
+        ]
+        
+        # Zusätzliche Felder für Signaturen
+        signatures_fields = ['signature_1', 'signature_2', 'signature_3']
+        
+        with open(output_file, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=fields + signatures_fields)
+            writer.writeheader()
+            
+            for result in results:
+                row = {k: v for k, v in result.items() if k in fields}
+                
+                # Signaturen hinzufügen
+                signatures = result.get('signatures', [])
+                for i, field in enumerate(signatures_fields):
+                    if i < len(signatures):
+                        row[field] = signatures[i]
+                    else:
+                        row[field] = ''
+                
+                writer.writerow(row)
+        
+        print(f"Ergebnisse wurden als CSV in '{output_file}' exportiert.")
+        return True
+    except Exception as e:
+        print(f"Fehler beim Export als CSV: {e}")
+        return False
+
+
+def export_results_to_yaml(results, output_file):
+    """
+    Exportiert Scan-Ergebnisse als YAML-Datei.
+    
+    Args:
+        results: Liste mit Scan-Ergebnissen
+        output_file: Pfad zur Ausgabedatei
+        
+    Returns:
+        True bei Erfolg, False bei Fehler
+    """
+    if not YAML_AVAILABLE:
+        print("YAML-Export nicht verfügbar. Bitte installieren Sie PyYAML: pip install pyyaml")
+        return False
+        
+    try:
+        # Daten für YAML aufbereiten
+        clean_results = _prepare_results_for_export(results)
+        
+        with open(output_file, 'w', encoding='utf-8') as f:
+            yaml.dump(clean_results, f, sort_keys=False, default_flow_style=False)
+        
+        print(f"Ergebnisse wurden als YAML in '{output_file}' exportiert.")
+        return True
+    except Exception as e:
+        print(f"Fehler beim Export als YAML: {e}")
+        return False
+
+
+def _prepare_results_for_export(results):
+    """
+    Bereitet die Ergebnisse für den Export vor, indem binäre Daten in hexadezimale Strings umgewandelt werden.
+    
+    Args:
+        results: Liste mit Scan-Ergebnissen
+        
+    Returns:
+        Aufbereitete Ergebnisse
+    """
+    clean_results = []
+    
+    for result in results:
+        clean_result = {}
+        
+        for key, value in result.items():
+            if isinstance(value, bytes):
+                clean_result[key] = value.hex()
+            elif isinstance(value, dict):
+                # Rekursiv durch verschachtelte Dictionaries gehen
+                clean_dict = {}
+                for k, v in value.items():
+                    if isinstance(v, bytes):
+                        clean_dict[k] = v.hex()
+                    elif isinstance(v, list):
+                        # Listen von Dictionaries behandeln
+                        clean_list = []
+                        for item in v:
+                            if isinstance(item, dict):
+                                clean_item = {}
+                                for ik, iv in item.items():
+                                    if isinstance(iv, bytes):
+                                        clean_item[ik] = iv.hex()
+                                    else:
+                                        clean_item[ik] = iv
+                                clean_list.append(clean_item)
+                            else:
+                                clean_list.append(item)
+                        clean_dict[k] = clean_list
+                    else:
+                        clean_dict[k] = v
+                clean_result[key] = clean_dict
+            else:
+                clean_result[key] = value
+        
+        clean_results.append(clean_result)
+    
+    return clean_results
